@@ -11,18 +11,18 @@ generative models. It can be easily inherited by downstream model classes to
 provide easy access to the generation API.
 """
 
-from abc import ABC, abstractmethod
 import typing as tp
+from abc import ABC, abstractmethod
 
 import omegaconf
 import torch
 
-from .encodec import CompressionModel
-from .lm import LMModel
-from .builders import get_wrapped_compression_model
 from ..data.audio_utils import convert_audio
 from ..modules.conditioners import ConditioningAttributes
 from ..utils.autocast import TorchAutocast
+from .builders import get_wrapped_compression_model
+from .encodec import CompressionModel
+from .lm import LMModel
 
 
 class BaseGenModel(ABC):
@@ -190,7 +190,7 @@ class BaseGenModel(ABC):
             return self.generate_audio(tokens), tokens
         return self.generate_audio(tokens)
 
-    def _generate_tokens(self, attributes: tp.List[ConditioningAttributes],
+    def _generate_tokens(self, cfg_conditions,
                          prompt_tokens: tp.Optional[torch.Tensor], progress: bool = False) -> torch.Tensor:
         """Generate discrete audio tokens given audio prompt and/or conditions.
 
@@ -226,7 +226,7 @@ class BaseGenModel(ABC):
             # generate by sampling from LM, simple case.
             with self.autocast:
                 gen_tokens = self.lm.generate(
-                    prompt_tokens, attributes,
+                    prompt_tokens, cfg_conditions,
                     callback=callback, max_gen_len=total_gen_len, **self.generation_params)
 
         else:
@@ -246,7 +246,7 @@ class BaseGenModel(ABC):
                 max_gen_len = int(chunk_duration * self.frame_rate)
                 with self.autocast:
                     gen_tokens = self.lm.generate(
-                        prompt_tokens, attributes,
+                        prompt_tokens, cfg_conditions,
                         callback=callback, max_gen_len=max_gen_len, **self.generation_params)
                 if prompt_tokens is None:
                     all_tokens.append(gen_tokens)

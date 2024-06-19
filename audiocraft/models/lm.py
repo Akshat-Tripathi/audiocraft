@@ -4,29 +4,28 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass
-from functools import partial
 import logging
 import math
 import typing as tp
+from dataclasses import dataclass
+from functools import partial
 
 import torch
 from torch import nn
 
-from ..utils import utils
-from ..modules.streaming import StreamingModule, State
-from ..modules.transformer import StreamingTransformer, create_norm_fn
+from ..modules.activations import get_activation_fn
+from ..modules.codebooks_patterns import CodebooksPatternProvider
 from ..modules.conditioners import (
-    ConditionFuser,
-    ClassifierFreeGuidanceDropout,
     AttributeDropout,
-    ConditioningProvider,
+    ClassifierFreeGuidanceDropout,
+    ConditionFuser,
     ConditioningAttributes,
+    ConditioningProvider,
     ConditionType,
 )
-from ..modules.codebooks_patterns import CodebooksPatternProvider
-from ..modules.activations import get_activation_fn
-
+from ..modules.streaming import State, StreamingModule
+from ..modules.transformer import StreamingTransformer, create_norm_fn
+from ..utils import utils
 
 logger = logging.getLogger(__name__)
 ConditionTensors = tp.Dict[str, ConditionType]
@@ -395,7 +394,7 @@ class LMModel(StreamingModule):
     @torch.no_grad()
     def generate(self,
                  prompt: tp.Optional[torch.Tensor] = None,
-                 conditions: tp.List[ConditioningAttributes] = [],
+                 cfg_conditions: CFGConditions = {},
                  num_samples: tp.Optional[int] = None,
                  max_gen_len: int = 256,
                  use_sampling: bool = True,
@@ -438,8 +437,8 @@ class LMModel(StreamingModule):
             possible_num_samples.append(num_samples)
         elif prompt is not None:
             possible_num_samples.append(prompt.shape[0])
-        elif conditions:
-            possible_num_samples.append(len(conditions))
+        elif cfg_conditions != {}:
+            possible_num_samples.append(cfg_conditions["description"][0].shape[0] // 2)
         else:
             possible_num_samples.append(1)
         assert [x == possible_num_samples[0] for x in possible_num_samples], "Inconsistent inputs shapes"
@@ -454,21 +453,21 @@ class LMModel(StreamingModule):
         # We also support doing two different passes, in particular to ensure that
         # the padding structure is exactly the same between train and test.
         # With a batch size of 1, this can be slower though.
-        cfg_conditions: CFGConditions
-        two_step_cfg = self.two_step_cfg if two_step_cfg is None else two_step_cfg
-        if conditions:
-            null_conditions = ClassifierFreeGuidanceDropout(p=1.0)(conditions)
-            if two_step_cfg:
-                cfg_conditions = (
-                    self.condition_provider(self.condition_provider.tokenize(conditions)),
-                    self.condition_provider(self.condition_provider.tokenize(null_conditions)),
-                )
-            else:
-                conditions = conditions + null_conditions
-                tokenized = self.condition_provider.tokenize(conditions)
-                cfg_conditions = self.condition_provider(tokenized)
-        else:
-            cfg_conditions = {}
+        # cfg_conditions: CFGConditions
+        # two_step_cfg = self.two_step_cfg if two_step_cfg is None else two_step_cfg
+        # if conditions:
+        #     null_conditions = ClassifierFreeGuidanceDropout(p=1.0)(conditions)
+        #     if two_step_cfg:
+        #         cfg_conditions = (
+        #             self.condition_provider(self.condition_provider.tokenize(conditions)),
+        #             self.condition_provider(self.condition_provider.tokenize(null_conditions)),
+        #         )
+        #     else:
+        #         conditions = conditions + null_conditions
+        #         tokenized = self.condition_provider.tokenize(conditions)
+        #         cfg_conditions = self.condition_provider(tokenized)
+        # else:
+        #     cfg_conditions = {}
 
         if prompt is None:
             assert num_samples > 0

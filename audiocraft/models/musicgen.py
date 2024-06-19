@@ -14,14 +14,13 @@ import warnings
 
 import torch
 
+from ..data.audio_utils import convert_audio
+from ..modules.conditioners import ConditioningAttributes, WavCondition
+from .builders import get_debug_compression_model, get_debug_lm_model
 from .encodec import CompressionModel
 from .genmodel import BaseGenModel
 from .lm import LMModel
-from .builders import get_debug_compression_model, get_debug_lm_model
 from .loaders import load_compression_model, load_lm_model
-from ..data.audio_utils import convert_audio
-from ..modules.conditioners import ConditioningAttributes, WavCondition
-
 
 MelodyList = tp.List[tp.Optional[torch.Tensor]]
 MelodyType = tp.Union[torch.Tensor, MelodyList]
